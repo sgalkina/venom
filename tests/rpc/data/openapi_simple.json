@@ -1,0 +1,75 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "version": "0.0.1",
+        "title": "API"
+    },
+    "schemes": [
+        "http"
+    ],
+    "consumes": [
+        "application/json"
+    ],
+    "produces": [
+        "application/json"
+    ],
+    "paths": {
+        "/pet/{id}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "responses": {
+                    "default": {
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/PetSimple"
+                        }
+                    }
+                },
+                "parameters": [
+                    {
+                        "in": "path",
+                        "required": true,
+                        "name": "id",
+                        "type": "integer"
+                    }
+                ]
+            }
+        },
+        "/pet": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "responses": {
+                    "default": {
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/PetSimple"
+                        }
+                    }
+                },
+                "parameters": [
+                    {
+                        "in": "body",
+                        "name": "PetSimple",
+                        "schema": {
+                            "$ref": "#/definitions/PetSimple"
+                        }
+                    }
+                ]
+            }
+        }
+    },
+    "definitions": {
+        "PetSimple": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer"
+                }
+            }
+        }
+    }
+}

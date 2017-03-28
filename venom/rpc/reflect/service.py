@@ -22,7 +22,7 @@ class ReflectServiceManager(ServiceManager):
     def register(self, venom: 'venom.Venom'):
         for service in venom:
             self.reflect_service(venom, service)
-        Venom.on_add_public_service.connect(self.reflect_service, sender=venom)
+        venom.on_add_public_service.connect(self.reflect_service, sender=venom)
 
 
 class ReflectService(Service):

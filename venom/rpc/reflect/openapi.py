@@ -67,12 +67,12 @@ def parameter_common(field: Field) -> dict:
 
 
 def parameters_path(method: Method) -> list:
-    fields = [getattr(method.response, f) for f in method.http_path_params()]
+    fields = [getattr(method.request, f) for f in method.http_path_params()]
     return [{**PATH_PARAMETER, **parameter_common(f)} for f in fields]
 
 
 def parameters_query(method: Method) -> list:
-    fields = [getattr(method.response, f)
+    fields = [getattr(method.request, f)
               for f in method.http_field_locations()[HTTPFieldLocation.QUERY]]
     return [{**QUERY_PARAMETER, **parameter_common(f)} for f in fields]
 
@@ -81,7 +81,7 @@ def parameters_body(method: Method) -> list:
     body_fields = method.http_field_locations()[HTTPFieldLocation.BODY]
     if not body_fields:
         return []
-    fields = {f: getattr(method.response, f) for f in body_fields}
+    fields = {f: getattr(method.request, f) for f in body_fields}
     if fields == method.request.__fields__:
         param = dict(
             name=method.request.__meta__.name,

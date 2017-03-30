@@ -3,12 +3,14 @@ from itertools import groupby
 from collections import defaultdict
 from venom.rpc.reflect.reflect import Reflect
 from venom.rpc.reflect.stubs import OpenAPISchema
-from venom.fields import Field
+from venom.fields import Field, RepeatField
 from venom import Message
 from venom.rpc.method import Method, HTTPFieldLocation
 
 
 DEFINITIONS = 'definitions'
+MESSAGE = 'message'
+ARRAY = 'array'
 
 
 # TODO: other types
@@ -34,10 +36,6 @@ QUERY_PARAMETER = {
 
 META_INFO = {
     'swagger': '2.0',
-    'info': {
-        'version': '0.0.1',  # TODO: version of the collection of services
-        'title': 'API',  # TODO: name of the collection of services
-    },
     'schemes': [
         'http'
     ],
@@ -50,8 +48,20 @@ META_INFO = {
 }
 
 
-def get_type(field: Field):
-    return TYPES[field.type.__name__]
+def field_type(field: Field) -> str:
+    if isinstance(field, RepeatField):
+        return ARRAY
+    return TYPES.get(field.type.__name__, MESSAGE)
+
+
+def type_dict(field: Field) -> dict:
+    result = {'type': field_type(field)}
+    if result['type'] == ARRAY:
+        result['items'] = type_dict(field.items)
+        return result
+    if result['type'] == MESSAGE:
+        return reference(field.type)
+    return result
 
 
 # TODO: get message name
@@ -63,7 +73,8 @@ def reference(message: Message) -> dict:
 
 
 def parameter_common(field: Field) -> dict:
-    return {'name': field.name, 'type': get_type(field)}
+    result = {'name': field.name}
+    return {**result, **type_dict(field)}
 
 
 def parameters_path(method: Method) -> list:
@@ -127,12 +138,11 @@ def schema_fields(fields: dict) -> dict:
     return {
         'type': 'object',
         'properties': {
-            k: dict(type=get_type(v)) for k, v in fields.items()
+            k: type_dict(v) for k, v in fields.items()
             }
     }
 
 
-# TODO: get fields dict
 def schema_message(message: Message) -> dict:
     return schema_fields(message.__fields__)
 
@@ -144,11 +154,18 @@ def schema_messages(reflect: Reflect) -> dict:
         }
 
 
+def service_collection_name(services: set()) -> str:
+    return '; '.join([s.__meta__.name for s in services])
+
+
 def make_openapi_schema(reflect: Reflect) -> OpenAPISchema:
     result = deepcopy(META_INFO)
     result.update({
+        'info': {
+            'version': '0.0.1',  # TODO: define service collection version
+            'title': service_collection_name(reflect.services),
+        },
         'paths': schema_methods(reflect),
         DEFINITIONS: schema_messages(reflect),
     })
     return result
-

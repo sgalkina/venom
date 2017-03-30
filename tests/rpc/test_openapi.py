@@ -10,53 +10,23 @@ from venom.rpc.reflect.openapi import make_openapi_schema
 TEST_DIR = os.path.dirname(__file__)
 
 
-class PetSimple(Message):
-    id = Int()
-
-
-class Pet(Message):
-    id = Int()
-    name = String()
-    tag = String()
-
-
-class PetServiceSimple(Service):
-    class Meta:
-        name = 'PetService'
-
-    @http.GET('./pet/{id}')
-    def get_pet(self, request: PetSimple) -> PetSimple:
-        return request
-
-    @http.POST('./pet')
-    def create_pet_body(self, request: PetSimple) -> PetSimple:
-        return request
-
-
-class PetServicePaths(Service):
-    class Meta:
-        name = 'PetService'
-
-    @http.GET('./pet/{id}', description='Get the pet')
-    def get_pet(self, request: Pet) -> Pet:
-        return Pet(request.id, 'Berry', 'cat')
-
-    @http.POST('./pet/{id}', description='Post the pet with path id')
-    def create_pet(self, request: Pet) -> Pet:
-        return request
-
-    @http.POST('./pet', description='Post the pet with body params')
-    def create_pet_body(self, request: Pet) -> Pet:
-        return request
-
-    @http.GET('./pet', description='Get the pet with query arguments')
-    def query_pet(self, request: Pet) -> Pet:
-        return request
-
-
 class OpenAPITestCase(TestCase):
-
     def test_openapi_simple(self):
+        class PetSimple(Message):
+            id = Int()
+
+        class PetServiceSimple(Service):
+            class Meta:
+                name = 'PetService'
+
+            @http.GET('./pet/{id}')
+            def get_pet(self, request: PetSimple) -> PetSimple:
+                return request
+
+            @http.POST('./pet')
+            def create_pet_body(self, request: PetSimple) -> PetSimple:
+                return request
+
         reflect = Reflect()
         reflect.add(PetServiceSimple)
         schema = make_openapi_schema(reflect)
@@ -66,6 +36,31 @@ class OpenAPITestCase(TestCase):
             self.assertEqual(schema['definitions'], data['definitions'])
 
     def test_openapi_paths(self):
+        class Pet(Message):
+            id = Int()
+            name = String()
+            tag = String()
+
+        class PetServicePaths(Service):
+            class Meta:
+                name = 'PetService'
+
+            @http.GET('./pet/{id}', description='Get the pet')
+            def get_pet(self, request: Pet) -> Pet:
+                return Pet(request.id, 'Berry', 'cat')
+
+            @http.POST('./pet/{id}', description='Post the pet with path id')
+            def create_pet(self, request: Pet) -> Pet:
+                return request
+
+            @http.POST('./pet', description='Post the pet with body params')
+            def create_pet_body(self, request: Pet) -> Pet:
+                return request
+
+            @http.GET('./pet', description='Get the pet with query arguments')
+            def query_pet(self, request: Pet) -> Pet:
+                return request
+
         reflect = Reflect()
         reflect.add(PetServicePaths)
         schema = make_openapi_schema(reflect)
@@ -80,6 +75,7 @@ class OpenAPITestCase(TestCase):
         class QueryResponse(Message):
             ids = Repeat(Gene)
             gene = Field(Gene)
+            repeat = Repeat(String)
 
         class IDMapping(Service):
             class Meta:
@@ -104,6 +100,12 @@ class OpenAPITestCase(TestCase):
                 },
                 "gene": {
                     "$ref": "#/definitions/Gene"
+                },
+                "repeat": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         }

@@ -17,10 +17,15 @@ class Reflect(object):
         self.methods = set()
         self.messages = set()
 
+    def _add_field(self, field: Field):
+        if type(field) == Field:
+            self._add_message(field.type)
+        if type(field) == RepeatField:
+            self._add_field(field.items)
+
     def _add_message(self, message: Message):
         for field in fields(message):
-            if type(field) == Field:
-                self._add_message(field.type)
+            self._add_field(field)
         self.messages.add(message)
 
     def _add_method(self, method: Method):

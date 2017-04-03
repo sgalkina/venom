@@ -95,9 +95,7 @@ class OpenAPITestCase(TestCase):
         reflect.add(IDMapping)
         schema = make_openapi_schema(reflect)
         protocol = JSON(OpenAPISchema)
-        protocol_response = JSON(FieldsMessage)
         schema_dict = protocol.encode(schema)
-        response_dict = protocol_response.encode(schema.definitions['QueryResponse'])
         response = {
             "type": "object",
             "properties": {

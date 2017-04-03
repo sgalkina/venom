@@ -34,6 +34,6 @@ class Reflect(object):
         self.methods.add(method)
 
     def add(self, service: Service):
-        for method in service().__methods__.values():
+        for method in service.__methods__.values():
             self._add_method(method)
         self.services.add(service)

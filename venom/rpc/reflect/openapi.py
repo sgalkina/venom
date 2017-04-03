@@ -1,10 +1,10 @@
-from copy import deepcopy
 from itertools import groupby
 from collections import defaultdict
 from venom.rpc.reflect.reflect import Reflect
-from venom.rpc.reflect.stubs import OpenAPISchema
-from venom.fields import Field, RepeatField
+from venom.protocol import JSON
+from venom.fields import Field, Repeat, RepeatField, String, Map, Bool
 from venom import Message
+from venom.message import field_names, fields
 from venom.rpc.method import Method, HTTPFieldLocation
 
 
@@ -22,30 +22,68 @@ TYPES = {
 }
 
 PATH_PARAMETER = {
-    'in': 'path',
+    'is_in': 'path',
     'required': True
 }
 
 BODY_PARAMETER = {
-    'in': 'body',
+    'is_in': 'body',
 }
 
 QUERY_PARAMETER = {
-    'in': 'query',
+    'is_in': 'query',
 }
 
-META_INFO = {
-    'swagger': '2.0',
-    'schemes': [
-        'http'
-    ],
-    'consumes': [
-        'application/json'
-    ],
-    'produces': [
-        'application/json'
-    ],
-}
+
+class TypeMessage(Message):
+    type = String()  # TODO: enum
+    items = Field('venom.rpc.reflect.openapi.TypeMessage')
+    ref = String(name='$ref')
+
+
+class FieldsMessage(Message):
+    type = String()
+    properties = Map(Field(TypeMessage))
+    ref = String(name='$ref')
+
+
+class ParameterMessage(Message):
+    is_in = String(name='in')  # TODO: enum
+    required = Bool()
+    name = String()
+    type = String()
+    items = Field(TypeMessage)
+    schema = Field(FieldsMessage)
+
+
+class ResponseMessage(Message):
+    description = String()
+    schema = Field(FieldsMessage)
+
+
+class ResponsesMessage(Message):
+    default = Field(ResponseMessage)  # TODO: error codes
+
+
+class MethodMessage(Message):
+    produces = Repeat(String())  # TODO: default value for RepeatField
+    responses = Field(ResponsesMessage)
+    parameters = Repeat(ParameterMessage)
+
+
+class InfoMessage(Message):
+    version = String(default='0.0.1')  # TODO: version
+    title = String()
+
+
+class OpenAPISchema(Message):
+    swagger = String(default='2.0')
+    schemes = Repeat(String())  # TODO: default value for RepeatField
+    consumes = Repeat(String())  # TODO: default value for RepeatField
+    produces = Repeat(String())  # TODO: default value for RepeatField
+    info = Field(InfoMessage)
+    paths = Map(Map(Field(MethodMessage)))
+    definitions = Map(Field(FieldsMessage))
 
 
 def field_type(field: Field) -> str:
@@ -54,31 +92,32 @@ def field_type(field: Field) -> str:
     return TYPES.get(field.type.__name__, MESSAGE)
 
 
-def type_dict(field: Field) -> dict:
-    result = {'type': field_type(field)}
-    if result['type'] == ARRAY:
-        result['items'] = type_dict(field.items)
-        return result
-    if result['type'] == MESSAGE:
-        return reference(field.type)
-    return result
+def type_message(field: Field) -> TypeMessage:
+    f_type = field_type(field)
+    if f_type == MESSAGE:
+        return TypeMessage(ref=reference_string(field.type))
+    if f_type == ARRAY:
+        return TypeMessage(type=f_type, items=type_message(field.items))
+    return TypeMessage(type=f_type)
 
 
-# TODO: get message name
-def reference(message: Message) -> dict:
+def reference_string(message: Message) -> str:
     name = message.__meta__.name
     if name == 'Empty':
-        return {}
-    return {'$ref': '#/{}/{}'.format(DEFINITIONS, name)}
+        return ''
+    return '#/{}/{}'.format(DEFINITIONS, name)
 
 
 def parameter_common(field: Field) -> dict:
     result = {'name': field.name}
-    return {**result, **type_dict(field)}
+    f_type = type_message(field)
+    protocol = JSON(type(f_type))
+    result.update(protocol.encode(f_type))
+    return result
 
 
 def parameters_path(method: Method) -> list:
-    fields = [getattr(method.request, f) for f in method.http_path_params()]
+    fields = [getattr(method.request, f) for f in method.http_path_parameters()]
     return [{**PATH_PARAMETER, **parameter_common(f)} for f in fields]
 
 
@@ -96,60 +135,65 @@ def parameters_body(method: Method) -> list:
     if fields == method.request.__fields__:
         param = dict(
             name=method.request.__meta__.name,
-            schema=reference(method.request)
+            schema=TypeMessage(ref=reference_string(method.response))
         )
     else:
         param = dict(
             name=method.name + '_body',
-            schema=schema_fields(fields)
+            schema=fields_message(fields.values())
         )
     return [{**BODY_PARAMETER, **param}]
 
 
-def parameters_schema(m: Method) -> list:
-    return parameters_body(m) + parameters_path(m) + parameters_query(m)
+def to_message(param_data: dict) -> ParameterMessage:
+    return ParameterMessage(
+        **{k: param_data[k] for k in field_names(ParameterMessage) if k in param_data}
+    )
 
 
-# TODO: error codes
-def schema_method(method: Method) -> dict:
-    return {
-        'produces': [
-            'application/json'  # TODO: other formats
-        ],
-        'responses': {
-            'default': {
-                'description': method.options.get('description', ''),
-                'schema': reference(method.response)
-            }
-        },
-        'parameters': parameters_schema(method),
-    }
+def parameters_messages(m: Method) -> list:
+    return list(map(to_message, parameters_body(m) + parameters_path(m) + parameters_query(m)))
 
 
-def schema_methods(reflect: Reflect) -> dict:
+def response_message(method: Method) -> ResponseMessage:
+    return ResponseMessage(
+        description=method.options.get('description', ''),
+        schema=FieldsMessage(ref=reference_string(method.response))
+    )
+
+
+def method_message(method: Method) -> MethodMessage:
+    return MethodMessage(
+        produces=['application/json'],  # TODO: other formats
+        responses=ResponsesMessage(default=response_message(method)),
+        parameters=parameters_messages(method)
+    )
+
+
+def methods_messages_map(reflect: Reflect) -> dict:
     result = defaultdict(dict)
-    for k, group in groupby(reflect.methods, key=lambda a: a.http_rule()):
+    for k, group in groupby(reflect.methods, key=lambda a: a.http_path):
         for m in group:
-            result[k.strip('.')][m.http_verb.value.lower()] = schema_method(m)
+            result[k.strip('.')][m.http_method.value.lower()] = method_message(m)
     return result
 
 
-def schema_fields(fields: dict) -> dict:
+def fields_message(fields) -> FieldsMessage:
+    return FieldsMessage(
+        type='object',
+        properties={
+            v.name: type_message(v) for v in fields
+        }
+    )
+
+
+def field_types_message(message: Message) -> FieldsMessage:
+    return fields_message(fields(message))
+
+
+def messages(reflect: Reflect) -> dict:
     return {
-        'type': 'object',
-        'properties': {
-            k: type_dict(v) for k, v in fields.items()
-            }
-    }
-
-
-def schema_message(message: Message) -> dict:
-    return schema_fields(message.__fields__)
-
-
-def schema_messages(reflect: Reflect) -> dict:
-    return {
-        m.__meta__.name: schema_message(m) for m in reflect.messages
+        m.__meta__.name: field_types_message(m) for m in reflect.messages
         if not m.__meta__.name == 'Empty'
         }
 
@@ -159,13 +203,12 @@ def service_collection_name(services: set()) -> str:
 
 
 def make_openapi_schema(reflect: Reflect) -> OpenAPISchema:
-    result = deepcopy(META_INFO)
-    result.update({
-        'info': {
-            'version': '0.0.1',  # TODO: define service collection version
-            'title': service_collection_name(reflect.services),
-        },
-        'paths': schema_methods(reflect),
-        DEFINITIONS: schema_messages(reflect),
-    })
-    return result
+    return OpenAPISchema(
+        swagger='2.0',
+        schemes=['http'],
+        consumes=['application/json'],
+        produces=['application/json'],
+        info=InfoMessage(version='0.0.1', title=service_collection_name(reflect.services)),
+        paths=methods_messages_map(reflect),
+        definitions=messages(reflect)
+    )

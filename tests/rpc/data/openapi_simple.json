@@ -14,7 +14,7 @@
         "application/json"
     ],
     "paths": {
-        "/pet/{id}": {
+        "/petservice/pet/{id}": {
             "get": {
                 "produces": [
                     "application/json"
@@ -37,7 +37,7 @@
                 ]
             }
         },
-        "/pet": {
+        "/petservice/pet": {
             "post": {
                 "produces": [
                     "application/json"

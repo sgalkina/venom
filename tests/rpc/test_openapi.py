@@ -4,8 +4,9 @@ from unittest import TestCase
 from venom.fields import Int, String, Repeat, Field
 from venom.message import Message
 from venom.rpc import Service, http
+from venom.protocol import JSON
 from venom.rpc.reflect.reflect import Reflect
-from venom.rpc.reflect.openapi import make_openapi_schema
+from venom.rpc.reflect.openapi import make_openapi_schema, OpenAPISchema, FieldsMessage
 
 TEST_DIR = os.path.dirname(__file__)
 
@@ -30,10 +31,12 @@ class OpenAPITestCase(TestCase):
         reflect = Reflect()
         reflect.add(PetServiceSimple)
         schema = make_openapi_schema(reflect)
+        protocol = JSON(OpenAPISchema)
+        schema_dict = protocol.encode(schema)
         with open(TEST_DIR + '/data/openapi_simple.json') as f:
             data = json.load(f)
-            self.assertEqual(schema['paths'], data['paths'])
-            self.assertEqual(schema['definitions'], data['definitions'])
+            self.assertEqual(schema_dict['paths'], data['paths'])
+            self.assertEqual(schema_dict['definitions'], data['definitions'])
 
     def test_openapi_paths(self):
         class Pet(Message):
@@ -64,9 +67,11 @@ class OpenAPITestCase(TestCase):
         reflect = Reflect()
         reflect.add(PetServicePaths)
         schema = make_openapi_schema(reflect)
-        self.assertEqual(set(schema['paths'].keys()), {'/pet', '/pet/{id}'})
-        self.assertEqual(set(schema['paths']['/pet'].keys()), {'post', 'get'})
-        self.assertEqual(set(schema['paths']['/pet/{id}'].keys()), {'post', 'get'})
+        protocol = JSON(OpenAPISchema)
+        schema_dict = protocol.encode(schema)
+        self.assertEqual(set(schema_dict['paths'].keys()), {'/petservice/pet', '/petservice/pet/{id}'})
+        self.assertEqual(set(schema_dict['paths']['/petservice/pet'].keys()), {'post', 'get'})
+        self.assertEqual(set(schema_dict['paths']['/petservice/pet/{id}'].keys()), {'post', 'get'})
 
     def test_repeat_field(self):
         class Gene(Message):
@@ -89,6 +94,10 @@ class OpenAPITestCase(TestCase):
         reflect = Reflect()
         reflect.add(IDMapping)
         schema = make_openapi_schema(reflect)
+        protocol = JSON(OpenAPISchema)
+        protocol_response = JSON(FieldsMessage)
+        schema_dict = protocol.encode(schema)
+        response_dict = protocol_response.encode(schema.definitions['QueryResponse'])
         response = {
             "type": "object",
             "properties": {
@@ -109,4 +118,4 @@ class OpenAPITestCase(TestCase):
                 }
             }
         }
-        self.assertEqual(schema['definitions']['QueryResponse'], response)
+        self.assertEqual(schema_dict['definitions']['QueryResponse'], response)

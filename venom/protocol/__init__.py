@@ -1,6 +1,7 @@
 from abc import ABCMeta, abstractmethod
 from base64 import b64encode, b64decode
 from functools import partial
+from itertools import chain
 from json import JSONDecodeError
 from typing import Type, TypeVar, Generic, Callable, Union, Any, Tuple, Iterable, Dict, List, Set, MutableMapping, \
     Mapping
@@ -8,7 +9,7 @@ from typing import Type, TypeVar, Generic, Callable, Union, Any, Tuple, Iterable
 from venom import Empty
 from venom import Message
 from venom.exceptions import ValidationError
-from venom.fields import Field, ConverterField, RepeatField, FieldDescriptor
+from venom.fields import Field, ConverterField, RepeatField, FieldDescriptor, MapField
 from venom.message import field_names, fields
 
 
@@ -24,12 +25,16 @@ from venom.message import field_names, fields
 #         return message_factory(name, {name: field for name, field in fields(message) if name in include})
 
 
+class NotExists(object):
+    pass
+
+
 class Protocol(metaclass=ABCMeta):
     mime: str = None
     name: str = None
 
-    def __new__(cls, fmt: Type[Message], field_names: Set[str] = None):
-        if field_names is None:
+    def __new__(cls, fmt: Type[Message], field_names_: Set[str] = None):
+        if field_names_ is None:
             try:
                 return fmt.__meta__.protocols[cls.name]
             except KeyError:
@@ -40,12 +45,12 @@ class Protocol(metaclass=ABCMeta):
         #     return Protocol.__new__(cls, Empty)
         else:
             instance = super(Protocol, cls).__new__(cls)
-            instance.__init__(fmt, field_names)
+            instance.__init__(fmt, field_names_)
             return instance
 
     def __init__(self, fmt: Type[Message], field_names_: Set[str] = None):
         if field_names_ is None:
-            field_names_ = field_names(fmt)
+            field_names_ = chain(field_names(fmt), (f.name for f in fields(fmt)))
             fmt.__meta__.protocols[self.name] = self
         self._format = fmt
         self._fields = [field for field in fields(fmt) if field.name in field_names_]
@@ -116,12 +121,16 @@ class JSON(DictProtocol):
             field_item_encoder = self._field_encoder(field.items)
             return lambda lst: [field_item_encoder(item) for item in lst]
 
-        if not isinstance(field, Field):
-            raise NotImplementedError()
+        if isinstance(field, MapField):
+            field_item_encoder = self._field_encoder(field.values)
+            return lambda dct: {k: field_item_encoder(v) for k, v in dct.items()}  # TODO: keys?
 
         if issubclass(field.type, Message):
             field_protocol = self._get_protocol(field.type)
             return lambda msg: field_protocol.encode(msg)
+
+        if not isinstance(field, Field):
+            raise NotImplementedError()
 
         if field.type is bytes:
             return lambda b: b64encode(b)
@@ -133,6 +142,10 @@ class JSON(DictProtocol):
         if isinstance(field, RepeatField):
             field_item_decoder = self._field_decoder(field.items)
             return lambda lst: [field_item_decoder(item) for item in self._cast(list, lst)]
+
+        if isinstance(field, MapField):
+            field_item_decoder = self._field_decoder(field.values)
+            return lambda dct: {k: field_item_decoder(v) for k, v in dct.items()}  # TODO: keys?
 
         if not isinstance(field, Field):
             raise NotImplementedError()

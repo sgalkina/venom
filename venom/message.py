@@ -74,6 +74,10 @@ class Message(MutableMapping, metaclass=MessageMeta):
             return default
 
     def __getitem__(self, key):
+        if key not in self._values:
+            for k, field in self.__fields__.items():
+                if self._values and field.name == key:
+                    return self._values[k]
         return self._values[key]
 
     def __setitem__(self, key, value):

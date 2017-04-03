@@ -22,7 +22,7 @@ class ReflectServiceManager(ServiceManager):
     def register(self, venom: 'venom.Venom'):
         for service in venom:
             self.reflect_service(venom, service)
-        venom.on_add_public_service.connect(self.reflect_service, sender=venom)
+        Venom.on_add_public_service.connect(self.reflect_service, sender=venom)
 
 
 class ReflectService(Service):
@@ -30,6 +30,6 @@ class ReflectService(Service):
         stub = ReflectStub
         manager = ReflectServiceManager
 
-    @http.GET('/openapi.json')
+    @http.GET('./openapi.json')
     def get_openapi_schema(self) -> OpenAPISchema:
         return make_openapi_schema(self.__manager__.reflect)

@@ -1,11 +1,12 @@
 from itertools import groupby
+from functools import singledispatch
 from collections import defaultdict
 from venom.rpc.reflect.reflect import Reflect
 from venom.rpc.reflect.stubs import TypeMessage, MethodMessage, \
     ParameterMessage, ResponsesMessage, ResponseMessage, \
     FieldsMessage, InfoMessage, OpenAPISchema
 from venom.protocol import JSON
-from venom.fields import Field, RepeatField
+from venom.fields import Field, RepeatField, MapField
 from venom import Message
 from venom.message import field_names, fields
 from venom.rpc.method import Method, HTTPFieldLocation
@@ -14,6 +15,7 @@ from venom.rpc.method import Method, HTTPFieldLocation
 DEFINITIONS = 'definitions'
 MESSAGE = 'message'
 ARRAY = 'array'
+MAP = 'map'
 
 
 # TODO: other types
@@ -38,19 +40,22 @@ QUERY_PARAMETER = {
 }
 
 
-def field_type(field: Field) -> str:
-    if isinstance(field, RepeatField):
-        return ARRAY
-    return TYPES.get(field.type.__name__, MESSAGE)
-
-
+@singledispatch
 def type_message(field: Field) -> TypeMessage:
-    f_type = field_type(field)
-    if f_type == MESSAGE:
+    f_type = field.type.__name__
+    if f_type not in TYPES:
         return TypeMessage(ref=reference_string(field.type))
-    if f_type == ARRAY:
-        return TypeMessage(type=f_type, items=type_message(field.items))
-    return TypeMessage(type=f_type)
+    return TypeMessage(type=TYPES[f_type])
+
+
+@type_message.register(RepeatField)
+def type_message_repeat(field: RepeatField) -> TypeMessage:
+    return TypeMessage(type=ARRAY, items=type_message(field.items))
+
+
+@type_message.register(MapField)
+def type_message_map(field: MapField) -> TypeMessage:
+    return TypeMessage(type='object', additionalProperties=type_message(field.values))
 
 
 def reference_string(message: Message) -> str:

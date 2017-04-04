@@ -8,6 +8,7 @@ class TypeMessage(Message):
     type = String()  # TODO: enum
     items = Field('venom.rpc.reflect.openapi.TypeMessage')
     ref = String(name='$ref')
+    additionalProperties = Field('venom.rpc.reflect.openapi.TypeMessage')
 
 
 class FieldsMessage(Message):

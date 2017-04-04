@@ -1,5 +1,3 @@
-from typing import Type
-
 from venom.rpc import Service, Venom
 from venom.rpc import http
 from venom.rpc.reflect.openapi import make_openapi_schema

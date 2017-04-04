@@ -6,7 +6,8 @@ from venom.message import Message
 from venom.rpc import Service, http
 from venom.protocol import JSON
 from venom.rpc.reflect.reflect import Reflect
-from venom.rpc.reflect.openapi import make_openapi_schema, OpenAPISchema, FieldsMessage
+from venom.rpc.reflect.service import ReflectService
+from venom.rpc.reflect.openapi import make_openapi_schema, OpenAPISchema
 
 TEST_DIR = os.path.dirname(__file__)
 
@@ -93,6 +94,7 @@ class OpenAPITestCase(TestCase):
 
         reflect = Reflect()
         reflect.add(IDMapping)
+        reflect.add(ReflectService)
         schema = make_openapi_schema(reflect)
         protocol = JSON(OpenAPISchema)
         schema_dict = protocol.encode(schema)
@@ -117,3 +119,4 @@ class OpenAPITestCase(TestCase):
             }
         }
         self.assertEqual(schema_dict['definitions']['QueryResponse'], response)
+

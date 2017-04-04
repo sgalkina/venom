@@ -13,6 +13,7 @@ from venom.rpc.method import Method, HTTPFieldLocation
 
 
 DEFINITIONS = 'definitions'
+DESCRIPTION = 'description'
 MESSAGE = 'message'
 ARRAY = 'array'
 MAP = 'map'
@@ -40,22 +41,39 @@ QUERY_PARAMETER = {
 }
 
 
+def description_param(field: Field) -> dict:
+    if DESCRIPTION in field.options:
+        return {DESCRIPTION: field.options.get(DESCRIPTION)}
+    return {}
+
+
 @singledispatch
 def type_message(field: Field) -> TypeMessage:
     f_type = field.type.__name__
     if f_type not in TYPES:
         return TypeMessage(ref=reference_string(field.type))
-    return TypeMessage(type=TYPES[f_type])
+    return TypeMessage(
+        type=TYPES[f_type],
+        **description_param(field)
+    )
 
 
 @type_message.register(RepeatField)
 def type_message_repeat(field: RepeatField) -> TypeMessage:
-    return TypeMessage(type=ARRAY, items=type_message(field.items))
+    return TypeMessage(
+        type=ARRAY,
+        items=type_message(field.items),
+        **description_param(field)
+    )
 
 
 @type_message.register(MapField)
 def type_message_map(field: MapField) -> TypeMessage:
-    return TypeMessage(type='object', additionalProperties=type_message(field.values))
+    return TypeMessage(
+        type='object',
+        additionalProperties=type_message(field.values),
+        **description_param(field)
+    )
 
 
 def reference_string(message: Message) -> str:
@@ -114,7 +132,7 @@ def parameters_messages(m: Method) -> list:
 
 def response_message(method: Method) -> ResponseMessage:
     return ResponseMessage(
-        description=method.options.get('description', ''),
+        description=method.options.get(DESCRIPTION, ''),
         schema=FieldsMessage(ref=reference_string(method.response))
     )
 
@@ -135,17 +153,23 @@ def methods_messages_map(reflect: Reflect) -> dict:
     return result
 
 
-def fields_message(fields) -> FieldsMessage:
-    return FieldsMessage(
+def fields_message(fields, description='') -> FieldsMessage:
+    params = dict(
         type='object',
         properties={
             v.name: type_message(v) for v in fields
         }
     )
+    if description:
+        params[DESCRIPTION] = description
+    return FieldsMessage(**params)
 
 
 def field_types_message(message: Message) -> FieldsMessage:
-    return fields_message(fields(message))
+    return fields_message(
+        fields(message),
+        description=message.__meta__.get(DESCRIPTION, '')
+    )
 
 
 def messages(reflect: Reflect) -> dict:

@@ -6,6 +6,7 @@ from venom.fields import Field, Repeat, String, Map, Bool
 
 class TypeMessage(Message):
     type = String()  # TODO: enum
+    description = String()
     items = Field('venom.rpc.reflect.openapi.TypeMessage')
     ref = String(name='$ref')
     additionalProperties = Field('venom.rpc.reflect.openapi.TypeMessage')
@@ -13,12 +14,14 @@ class TypeMessage(Message):
 
 class FieldsMessage(Message):
     type = String()
+    description = String()
     properties = Map(Field(TypeMessage))
     ref = String(name='$ref')
 
 
 class ParameterMessage(Message):
     is_in = String(name='in')  # TODO: enum
+    description = String()
     required = Bool()
     name = String()
     type = String()

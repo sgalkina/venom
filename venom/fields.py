@@ -163,9 +163,10 @@ class _RepeatValueProxy(collections.MutableSequence):
 
 
 class RepeatField(Generic[CT], FieldDescriptor):
-    def __init__(self, items: Type[CT], name: str = None) -> None:
+    def __init__(self, items: Type[CT], name: str = None, **options) -> None:
         self.items = items
         self.name = name
+        self.options = AttributeDict(options)
 
     def __get__(self, instance: 'venom.message.Message', owner):
         if instance is None:
@@ -175,15 +176,16 @@ class RepeatField(Generic[CT], FieldDescriptor):
     def __eq__(self, other):
         if not isinstance(other, RepeatField):
             return False
-        return self.items == other.items and self.name == other.name
+        return self.items == other.items and self.name == other.name and self.options == other.options
 
 
 class MapField(Generic[CT], FieldDescriptor):
-    def __init__(self, values: Type[CT], name: str = None) -> None:
+    def __init__(self, values: Type[CT], name: str = None, **options) -> None:
         super().__init__()
         self.keys = String()
         self.values = values
         self.name = name
+        self.options = AttributeDict(options)
 
 
 def Repeat(items: Union[Field, MapField, RepeatField, type, str], **kwargs) -> RepeatField:

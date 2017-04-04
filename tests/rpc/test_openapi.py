@@ -76,19 +76,22 @@ class OpenAPITestCase(TestCase):
 
     def test_repeat_field(self):
         class Gene(Message):
-            gene_id = String()
+            class Meta:
+                description = 'Very important object'
+
+            gene_id = String(description='Gene ID from any database to query')
 
         class QueryResponse(Message):
-            ids = Repeat(Gene)
-            gene = Field(Gene)
-            repeat = Repeat(String)
+            ids = Repeat(Gene, description='Bunch of genes')
+            gene = Field(Gene, description='The other gene')
+            repeat = Repeat(String, description='Bunch of strings')
 
         class IDMapping(Service):
             class Meta:
                 version = '0.0.1b'
                 name = 'ID Mapper'
 
-            @http.GET('./query')
+            @http.GET('./query', description='Get the gene')
             def query(self) -> QueryResponse:
                 return QueryResponse(ids=['1', '2', '3'])
 
@@ -103,6 +106,7 @@ class OpenAPITestCase(TestCase):
             "properties": {
                 "ids": {
                     "type": "array",
+                    "description": "Bunch of genes",
                     "items": {
                         "$ref": "#/definitions/Gene"
                     }
@@ -112,6 +116,7 @@ class OpenAPITestCase(TestCase):
                 },
                 "repeat": {
                     "type": "array",
+                    "description": "Bunch of strings",
                     "items": {
                         "type": "string"
                     }
